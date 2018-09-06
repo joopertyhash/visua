@@ -109,8 +109,11 @@ d3.select(canvas)
 // Handle data
 
 const socket = new WebSocket('wss://ws.blockchain.info/inv');
-
 socket.addEventListener('open', () => {
   socket.send(JSON.stringify({ op: 'unconfirmed_sub' }));
 });
+
+socket.onmessage = (event) => {
+  console.log(JSON.parse(event.data));
+};
 
