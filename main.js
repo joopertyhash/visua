@@ -20,15 +20,15 @@ function drawLink(d) {
 
 function drawNode(d) {
   context.beginPath();
-  if (d.x > (width / 2) - (radius * 2) || d.x < (width / -2) + (radius * 2)) {
-    const newX = d.x > 1 ? width / 2 - radius * 2 : width / -2;
-    d.x = newX;
-  }
+  //   if (d.x > (width / 2) - (radius * 2) || d.x < (width / -2) + (radius * 2)) {
+  //     const newX = d.x > 1 ? width / 2 - radius * 2 : width / -2;
+  //     d.x = newX;
+  //   }
 
-  if (d.y > (height / 2) - (radius * 2) || d.y < (height / -2) + (radius * 2)) {
-    const newY = d.y > 1 ? height / 2 - radius * 2 : height / -2;
-    d.y = newY;
-  }
+  //   if (d.y > (height / 2) - (radius * 2) || d.y < (height / -2) + (radius * 2)) {
+  //     const newY = d.y > 1 ? height / 2 - radius * 2 : height / -2;
+  //     d.y = newY;
+  //   }
 
   context.moveTo(d.x + radius, d.y);
   context.arc(d.x, d.y, radius, 0, 2 * Math.PI);
@@ -48,7 +48,6 @@ function drawNode(d) {
     context.fillStyle = '#ff00ee';
   }
   context.fill();
-  context.fillText(d.id, d.x + 10, d.y);
   context.stroke();
 }
 
@@ -70,8 +69,8 @@ const simulation = d3.forceSimulation(nodes)
   .force('charge', d3.forceManyBody())
   .force('link', d3.forceLink(links).id((d => d.id)).distance(50).strength(1))
   .force('collision', d3.forceCollide().radius(d => d.radius))
-  //   .force('x', d3.forceX())
-  //   .force('y', d3.forceY())
+//   .force('x', d3.forceX())
+//   .force('y', d3.forceY())
   .on('tick', ticked);
 
 function dragSubject() {
@@ -115,6 +114,7 @@ function processTransactions(txs) {
     {
       type: 0,
       id: transaction.x.hash,
+      hash: transaction.x.hash,
       inputs: transaction.x.inputs.map(input => input.prev_out.addr).map((input, index) => ({
         type: 1,
         id: `${input}input${transaction.x.hash}${index}`,
@@ -142,39 +142,64 @@ function processTransactions(txs) {
   return processedTxs;
 }
 
+function removeOldNodes() {
+  const removedTransaction = transactions.shift();
+  const newNodes = [];
+  const newLinks = [];
+
+  nodes.forEach((node) => {
+    if (node.hash !== removedTransaction.x.hash) {
+      newNodes.push(node);
+    }
+  });
+
+  links.forEach((link) => {
+    if (link.hash !== removedTransaction.x.hash) {
+      newLinks.push(link);
+    }
+  });
+  nodes = newNodes;
+  links = newLinks;
+  simulation.nodes(nodes);
+  simulation.force('link').links(links);
+  simulation.alpha(1).restart();
+}
+
 const socket = new WebSocket('wss://ws.blockchain.info/inv');
 socket.addEventListener('open', () => {
   socket.send(JSON.stringify({ op: 'unconfirmed_sub' }));
 });
 
 socket.onmessage = (event) => {
-  if (transactions.length < txlimit) {
-    transactions.push(JSON.parse(event.data));
-    const processedTxs = processTransactions(transactions);
-    processedTxs.forEach((transaction) => {
-      nodes.push(transaction);
-      nodes = nodes.concat(transaction.inputs);
-      nodes = nodes.concat(transaction.outputs);
-      links = links.concat(transaction.inputs);
-      links = links.concat(transaction.outputs);
-      transaction.inputs.forEach((input) => {
-        nodes.forEach((node) => {
-          if (node.type === 2 && node.id.substring(0, node.id.indexOf('output')) === input.id.substring(0, input.id.indexOf('input'))) {
-            const tx = processedTxs.find(tx => tx.id === input.hash);
-            if (!tx.changeTransaction) {
-              node.type = 3;
-              links.push({
-                source: node.id,
-                target: transaction.id,
-              });
-            }
-          }
-        });
-      });
-      simulation.nodes(nodes);
-      simulation.force('link').links(links);
-      simulation.alpha(1).restart();
-    });
+  if (transactions.length > txlimit) {
+    removeOldNodes();
   }
+  transactions.push(JSON.parse(event.data));
+  const processedTxs = processTransactions(transactions);
+  processedTxs.forEach((transaction) => {
+    nodes.push(transaction);
+    nodes = nodes.concat(transaction.inputs);
+    nodes = nodes.concat(transaction.outputs);
+    links = links.concat(transaction.inputs);
+    links = links.concat(transaction.outputs);
+    transaction.inputs.forEach((input) => {
+      nodes.forEach((node) => {
+        if (node.type === 2 && node.id.substring(0, node.id.indexOf('output')) === input.id.substring(0, input.id.indexOf('input'))) {
+          const tx = processedTxs.find(tx => tx.id === input.hash);
+          if (!tx.changeTransaction) {
+            node.type = 3;
+            links.push({
+              source: node.id,
+              target: transaction.id,
+              hash: transaction.hash,
+            });
+          }
+        }
+      });
+    });
+    simulation.nodes(nodes);
+    simulation.force('link').links(links);
+    simulation.alpha(1).restart();
+  });
 };
 
