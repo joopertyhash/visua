@@ -1,8 +1,8 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 const _ = require('lodash');
 
-const links = [];
-const nodes = [];
+let links = [];
+let nodes = [];
 const transactions = [];
 const radius = 3;
 const txlimit = 10;
@@ -149,8 +149,34 @@ socket.addEventListener('open', () => {
 });
 
 socket.onmessage = (event) => {
-  transactions.push(JSON.parse(event.data));
-  console.log(processTransactions(transactions));
+  if (transactions.length < txlimit) {
+    transactions.push(JSON.parse(event.data));
+    const processedTxs = processTransactions(transactions);
+    processedTxs.forEach((transaction) => {
+      nodes.push(transaction);
+      nodes = nodes.concat(transaction.inputs);
+      nodes = nodes.concat(transaction.outputs);
+      links = links.concat(transaction.inputs);
+      links = links.concat(transaction.outputs);
+      transaction.inputs.forEach((input) => {
+        nodes.forEach((node) => {
+          if (node.type === 2 && node.id.substring(0, node.id.indexOf('output')) === input.id.substring(0, input.id.indexOf('input'))) {
+            const tx = processedTxs.find(tx => tx.id === input.hash);
+            if (!tx.changeTransaction) {
+              node.type = 3;
+              links.push({
+                source: node.id,
+                target: transaction.id,
+              });
+            }
+          }
+        });
+      });
+      simulation.nodes(nodes);
+      simulation.force('link').links(links);
+      simulation.alpha(1).restart();
+    });
+  }
 };
 
 
