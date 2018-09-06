@@ -105,3 +105,12 @@ d3.select(canvas)
     .on('drag', dragged)
     .on('end', dragEnd));
 
+
+// Handle data
+
+const socket = new WebSocket('wss://ws.blockchain.info/inv');
+
+socket.addEventListener('open', () => {
+  socket.send(JSON.stringify({ op: 'unconfirmed_sub' }));
+});
+
