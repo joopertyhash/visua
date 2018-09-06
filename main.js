@@ -2,9 +2,10 @@ const _ = require('lodash');
 
 let links = [];
 let nodes = [];
-const transactions = [];
+let transactions = [];
 const radius = 3;
-const txlimit = 10;
+const txLimit = 50;
+let process = 1;
 
 const canvas = document.querySelector('canvas');
 const context = canvas.getContext('2d');
@@ -53,24 +54,26 @@ function drawNode(d) {
 
 
 function ticked() {
-  context.clearRect(0, 0, width, height);
-  context.save();
-  context.translate(width / 2, height / 2);
-  context.beginPath();
-  context.beginPath();
-  links.forEach(drawLink);
-  context.strokeStyle = '#000000';
-  context.stroke();
-  nodes.forEach(drawNode);
-  context.restore();
+  if (process) {
+    context.clearRect(0, 0, width, height);
+    context.save();
+    context.translate(width / 2, height / 2);
+    context.beginPath();
+    context.beginPath();
+    links.forEach(drawLink);
+    context.strokeStyle = '#000000';
+    context.stroke();
+    nodes.forEach(drawNode);
+    context.restore();
+  } process = 1 - process;
 }
 
 const simulation = d3.forceSimulation(nodes)
   .force('charge', d3.forceManyBody())
   .force('link', d3.forceLink(links).id((d => d.id)).distance(50).strength(1))
   .force('collision', d3.forceCollide().radius(d => d.radius))
-//   .force('x', d3.forceX())
-//   .force('y', d3.forceY())
+  .force('x', d3.forceX())
+  .force('y', d3.forceY())
   .on('tick', ticked);
 
 function dragSubject() {
@@ -131,14 +134,16 @@ function processTransactions(txs) {
       })),
     }
   ));
-  processedTxs.forEach((tx) => {
+
+  for (let i = 0; i < processedTxs.length; i++) {
+    const tx = processedTxs[i];
     const outputCounter = _.countBy(tx.outputs.map(output => output.id.substring(0, output.id.indexOf('output'))));
     tx.inputs.map(input => input.id.substring(0, input.id.indexOf('input'))).forEach((input) => {
       if (outputCounter[input] % 2) {
         tx.changeTransaction = true;
       }
     });
-  });
+  }
   return processedTxs;
 }
 
@@ -171,35 +176,26 @@ socket.addEventListener('open', () => {
 });
 
 socket.onmessage = (event) => {
-  if (transactions.length > txlimit) {
-    removeOldNodes();
-  }
-  transactions.push(JSON.parse(event.data));
-  const processedTxs = processTransactions(transactions);
-  processedTxs.forEach((transaction) => {
-    nodes.push(transaction);
-    nodes = nodes.concat(transaction.inputs);
-    nodes = nodes.concat(transaction.outputs);
-    links = links.concat(transaction.inputs);
-    links = links.concat(transaction.outputs);
-    transaction.inputs.forEach((input) => {
-      nodes.forEach((node) => {
-        if (node.type === 2 && node.id.substring(0, node.id.indexOf('output')) === input.id.substring(0, input.id.indexOf('input'))) {
-          const tx = processedTxs.find(tx => tx.id === input.hash);
-          if (!tx.changeTransaction) {
-            node.type = 3;
-            links.push({
-              source: node.id,
-              target: transaction.id,
-              hash: transaction.hash,
-            });
-          }
-        }
-      });
-    });
+  if (transactions.length > txLimit) {
+    const processedTxs = processTransactions(transactions);
+    bufferedTransactions = [];
+    transactions = [];
+    nodes = [];
+    links = [];
+    nodes = nodes.concat(processedTxs);
+    for (let i = 0; i < processedTxs.length; i++) {
+      const tx = processedTxs[i];
+      nodes = nodes.concat(tx.inputs);
+      nodes = nodes.concat(tx.outputs);
+      links = links.concat(tx.inputs);
+      links = links.concat(tx.outputs);
+    }
     simulation.nodes(nodes);
     simulation.force('link').links(links);
     simulation.alpha(1).restart();
-  });
+  } else {
+    console.log('pushing');
+    transactions.push(JSON.parse(event.data));
+  }
 };
 
