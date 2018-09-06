@@ -1,3 +1,5 @@
+const _ = require('lodash');
+
 const links = [];
 const nodes = [];
 const transactions = [];
@@ -108,12 +110,45 @@ d3.select(canvas)
 
 // Handle data
 
+function processTransactions(txs) {
+  const processedTxs = txs.map(transaction => (
+    {
+      type: 0,
+      id: transaction.x.hash,
+      inputs: transaction.x.inputs.map(input => input.prev_out.addr).map((input, index) => ({
+        type: 1,
+        id: `${input}input${transaction.x.hash}${index}`,
+        hash: transaction.x.hash,
+        source: `${input}input${transaction.x.hash}${index}`,
+        target: transaction.x.hash,
+      })),
+      outputs: transaction.x.out.map(output => output.addr).filter(addr => (!!addr)).map((output, index) => ({
+        type: 2,
+        id: `${output}output${transaction.x.hash}${index}`,
+        hash: transaction.x.hash,
+        source: transaction.x.hash,
+        target: `${output}output${transaction.x.hash}${index}`,
+      })),
+    }
+  ));
+  processedTxs.forEach((tx) => {
+    const outputCounter = _.countBy(tx.outputs.map(output => output.id.substring(0, output.id.indexOf('output'))));
+    tx.inputs.map(input => input.id.substring(0, input.id.indexOf('input'))).forEach((input) => {
+      if (outputCounter[input] % 2) {
+        tx.changeTransaction = true;
+      }
+    });
+  });
+  return processedTxs;
+}
+
 const socket = new WebSocket('wss://ws.blockchain.info/inv');
 socket.addEventListener('open', () => {
   socket.send(JSON.stringify({ op: 'unconfirmed_sub' }));
 });
 
 socket.onmessage = (event) => {
-  console.log(JSON.parse(event.data));
+  transactions.push(JSON.parse(event.data));
+  console.log(processTransactions(transactions));
 };
 
