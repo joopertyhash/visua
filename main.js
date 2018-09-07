@@ -18,15 +18,15 @@ function drawLink(d) {
 
 function drawNode(d) {
   context.beginPath();
-  if (d.x > (width / 2) - (radius * 2) || d.x < (width / -2) + (radius * 2)) {
-    const newX = d.x > 1 ? width / 2 - radius * 2 : width / -2;
-    d.x = newX;
-  }
+  // if (d.x > (width / 2) - (radius * 2) || d.x < (width / -2) + (radius * 2)) {
+  //   const newX = d.x > 1 ? width / 2 - radius * 2 : width / -2;
+  //   d.x = newX;
+  // }
 
-  if (d.y > (height / 2) - (radius * 2) || d.y < (height / -2) + (radius * 2)) {
-    const newY = d.y > 1 ? height / 2 - radius * 2 : height / -2;
-    d.y = newY;
-  }
+  // if (d.y > (height / 2) - (radius * 2) || d.y < (height / -2) + (radius * 2)) {
+  //   const newY = d.y > 1 ? height / 2 - radius * 2 : height / -2;
+  //   d.y = newY;
+  // }
 
   context.moveTo(d.x + radius, d.y);
   context.arc(d.x, d.y, radius, 0, 2 * Math.PI);
