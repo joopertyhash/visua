@@ -1,10 +1,7 @@
-const _ = require('lodash');
-
-const links = [];
-const nodes = [];
-const transactions = [];
+let links = [];
+let nodes = [];
 const radius = 3;
-const txLimit = 50;
+const txLimit = 1500;
 let process = 1;
 
 const canvas = document.querySelector('canvas');
@@ -110,43 +107,6 @@ d3.select(canvas)
     .on('end', dragEnd));
 
 
-// Handle data
-
-function processTransactions(txs) {
-  const processedTxs = txs.map(transaction => (
-    {
-      type: 0,
-      id: transaction.x.hash,
-      hash: transaction.x.hash,
-      inputs: transaction.x.inputs.map(input => input.prev_out.addr).map((input, index) => ({
-        type: 1,
-        id: `${input}input${transaction.x.hash}${index}`,
-        hash: transaction.x.hash,
-        source: `${input}input${transaction.x.hash}${index}`,
-        target: transaction.x.hash,
-      })),
-      outputs: transaction.x.out.map(output => output.addr).filter(addr => (!!addr)).map((output, index) => ({
-        type: 2,
-        id: `${output}output${transaction.x.hash}${index}`,
-        hash: transaction.x.hash,
-        source: transaction.x.hash,
-        target: `${output}output${transaction.x.hash}${index}`,
-      })),
-    }
-  ));
-
-  for (let i = 0; i < processedTxs.length; i++) {
-    const tx = processedTxs[i];
-    const outputCounter = _.countBy(tx.outputs.map(output => output.id.substring(0, output.id.indexOf('output'))));
-    tx.inputs.map(input => input.id.substring(0, input.id.indexOf('input'))).forEach((input) => {
-      if (outputCounter[input] % 2) {
-        tx.changeTransaction = true;
-      }
-    });
-  }
-  return processedTxs;
-}
-
 // function removeOldNodes() {
 //   const removedTransaction = transactions.shift();
 //   const newNodes = [];
@@ -171,6 +131,29 @@ function processTransactions(txs) {
 // }
 
 function createNodes(link) {
+  // Remove transaction if greater than txLimit
+  if (nodes.length + links.length > txLimit) {
+    const removedNode = nodes[0];
+    const newNodes = [];
+    const newLinks = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (removedNode.hash !== node.hash) {
+        newNodes.push(node);
+      }
+    }
+
+    for (let j = 0; j < links.length; j++) {
+      const testLink = links[j];
+      if (removedNode.hash !== testLink.hash) {
+        newLinks.push(testLink);
+      }
+    }
+    nodes = newNodes;
+    links = newLinks;
+  }
+  console.log(nodes.length + links.length);
+
   // Handle input links
   const nodeCopy = nodes;
   let node = null;
@@ -185,6 +168,7 @@ function createNodes(link) {
     if (!node) {
       nodes.push({
         id: link.source,
+        hash: link.hash,
         type: link.type,
       });
     } else if (node.type === 2) {
@@ -200,6 +184,7 @@ function createNodes(link) {
     if (!otherNode) {
       nodes.push({
         id: link.target,
+        hash: link.hash,
         type: link.type,
       });
     } else if (otherNode.type === 1) {
@@ -210,19 +195,20 @@ function createNodes(link) {
     links.push(link);
   } else if (otherNode) {
     links.push({
+      hash: otherNode.hash,
       source: otherNode.id,
       target: link.source,
     });
   } else if (node) {
     links.push({
+      hash: node.hash,
       source: node.id,
       target: link.target,
     });
   }
-  console.log(links);
-  // simulation.nodes(nodes);
-  // simulation.force('link').links(links);
-  // simulation.alpha(1).restart();
+  simulation.nodes(nodes);
+  simulation.force('link').links(links);
+  simulation.alpha(1).restart();
 }
 
 const socket = new WebSocket('wss://ws.blockchain.info/inv');
@@ -231,45 +217,24 @@ socket.addEventListener('open', () => {
 });
 
 socket.onmessage = (event) => {
-  // if (transactions.length > txLimit) {
-  //   const processedTxs = processTransactions(transactions);
-  //   bufferedTransactions = [];
-  //   transactions = [];
-  //   nodes = [];
-  //   links = [];
-  //   nodes = nodes.concat(processedTxs);
-  //   for (let i = 0; i < processedTxs.length; i++) {
-  //     const tx = processedTxs[i];
-  //     nodes = nodes.concat(tx.inputs);
-  //     nodes = nodes.concat(tx.outputs);
-  //     links = links.concat(tx.inputs);
-  //     links = links.concat(tx.outputs);
-  //   }
-  //   simulation.nodes(nodes);
-  //   simulation.force('link').links(links);
-  //   simulation.alpha(1).restart();
-  // } else {
-  //   console.log('pushing');
-  //   transactions.push(JSON.parse(event.data));
-  // }
-
   const tx = JSON.parse(event.data);
-  console.log(tx);
   if (tx.op === 'utx') {
     const { hash, inputs, out } = tx.x;
-
+    // Create transaction node
     if (hash && inputs && out) {
       nodes.push({
         id: hash,
+        hash,
         type: 0,
       });
-      const linksBuffer = [];
+      let linksBuffer = [];
       // Create input links
       for (let i = 0; i < inputs.length; i++) {
         const input = inputs[i];
         linksBuffer.push({
           source: `${input.prev_out.addr}transactioninput${hash}${i}`,
           target: hash,
+          hash,
           type: 1,
         });
       }
@@ -280,6 +245,7 @@ socket.onmessage = (event) => {
           linksBuffer.push({
             source: hash,
             target: `${output.addr}transactionoutput${hash}${j}`,
+            hash,
             type: 2,
           });
         }
@@ -289,9 +255,7 @@ socket.onmessage = (event) => {
         const link = linksBuffer[k];
         createNodes(link);
       }
-      simulation.nodes(nodes);
-      simulation.force('link').links(links);
-      simulation.alpha(1).restart();
+      linksBuffer = [];
     }
   }
 };
