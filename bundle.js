@@ -1,9 +1,9 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 const _ = require('lodash');
 
-let links = [];
-let nodes = [];
-let transactions = [];
+const links = [];
+const nodes = [];
+const transactions = [];
 const radius = 3;
 const txLimit = 50;
 let process = 1;
@@ -148,27 +148,82 @@ function processTransactions(txs) {
   return processedTxs;
 }
 
-function removeOldNodes() {
-  const removedTransaction = transactions.shift();
-  const newNodes = [];
-  const newLinks = [];
+// function removeOldNodes() {
+//   const removedTransaction = transactions.shift();
+//   const newNodes = [];
+//   const newLinks = [];
 
-  nodes.forEach((node) => {
-    if (node.hash !== removedTransaction.x.hash) {
-      newNodes.push(node);
-    }
-  });
+//   nodes.forEach((node) => {
+//     if (node.hash !== removedTransaction.x.hash) {
+//       newNodes.push(node);
+//     }
+//   });
 
-  links.forEach((link) => {
-    if (link.hash !== removedTransaction.x.hash) {
-      newLinks.push(link);
+//   links.forEach((link) => {
+//     if (link.hash !== removedTransaction.x.hash) {
+//       newLinks.push(link);
+//     }
+//   });
+//   nodes = newNodes;
+//   links = newLinks;
+//   simulation.nodes(nodes);
+//   simulation.force('link').links(links);
+//   simulation.alpha(1).restart();
+// }
+
+function createNodes(link) {
+  // Handle input links
+  const nodeCopy = nodes;
+  let node = null;
+  let otherNode = null;
+  if (link.type === 1) {
+    for (let i = 0; i < nodeCopy.length; i++) {
+      const testNode = nodeCopy[i];
+      if (testNode.id.substring(0, testNode.id.indexOf('transaction')) === link.source.substring(0, link.source.indexOf('transaction'))) {
+        node = testNode;
+      }
     }
-  });
-  nodes = newNodes;
-  links = newLinks;
-  simulation.nodes(nodes);
-  simulation.force('link').links(links);
-  simulation.alpha(1).restart();
+    if (!node) {
+      nodes.push({
+        id: link.source,
+        type: link.type,
+      });
+    } else if (node.type === 2) {
+      node.type = 3;
+    }
+  } else if (link.type === 2) {
+    for (let j = 0; j < nodeCopy.length; j++) {
+      const otherTestNode = nodeCopy[j];
+      if (otherTestNode.id === link.target) {
+        otherNode = otherTestNode;
+      }
+    }
+    if (!otherNode) {
+      nodes.push({
+        id: link.target,
+        type: link.type,
+      });
+    } else if (otherNode.type === 1) {
+      otherNode.type = 3;
+    }
+  }
+  if (!node && !otherNode) {
+    links.push(link);
+  } else if (otherNode) {
+    links.push({
+      source: otherNode.id,
+      target: link.source,
+    });
+  } else if (node) {
+    links.push({
+      source: node.id,
+      target: link.target,
+    });
+  }
+  console.log(links);
+  // simulation.nodes(nodes);
+  // simulation.force('link').links(links);
+  // simulation.alpha(1).restart();
 }
 
 const socket = new WebSocket('wss://ws.blockchain.info/inv');
@@ -177,26 +232,68 @@ socket.addEventListener('open', () => {
 });
 
 socket.onmessage = (event) => {
-  if (transactions.length > txLimit) {
-    const processedTxs = processTransactions(transactions);
-    bufferedTransactions = [];
-    transactions = [];
-    nodes = [];
-    links = [];
-    nodes = nodes.concat(processedTxs);
-    for (let i = 0; i < processedTxs.length; i++) {
-      const tx = processedTxs[i];
-      nodes = nodes.concat(tx.inputs);
-      nodes = nodes.concat(tx.outputs);
-      links = links.concat(tx.inputs);
-      links = links.concat(tx.outputs);
+  // if (transactions.length > txLimit) {
+  //   const processedTxs = processTransactions(transactions);
+  //   bufferedTransactions = [];
+  //   transactions = [];
+  //   nodes = [];
+  //   links = [];
+  //   nodes = nodes.concat(processedTxs);
+  //   for (let i = 0; i < processedTxs.length; i++) {
+  //     const tx = processedTxs[i];
+  //     nodes = nodes.concat(tx.inputs);
+  //     nodes = nodes.concat(tx.outputs);
+  //     links = links.concat(tx.inputs);
+  //     links = links.concat(tx.outputs);
+  //   }
+  //   simulation.nodes(nodes);
+  //   simulation.force('link').links(links);
+  //   simulation.alpha(1).restart();
+  // } else {
+  //   console.log('pushing');
+  //   transactions.push(JSON.parse(event.data));
+  // }
+
+  const tx = JSON.parse(event.data);
+  console.log(tx);
+  if (tx.op === 'utx') {
+    const { hash, inputs, out } = tx.x;
+
+    if (hash && inputs && out) {
+      nodes.push({
+        id: hash,
+        type: 0,
+      });
+      const linksBuffer = [];
+      // Create input links
+      for (let i = 0; i < inputs.length; i++) {
+        const input = inputs[i];
+        linksBuffer.push({
+          source: `${input.prev_out.addr}transactioninput${hash}${i}`,
+          target: hash,
+          type: 1,
+        });
+      }
+      // Create output links
+      for (let j = 0; j < out.length; j++) {
+        const output = out[j];
+        if (output.addr) {
+          linksBuffer.push({
+            source: hash,
+            target: `${output.addr}transactionoutput${hash}${j}`,
+            type: 2,
+          });
+        }
+      }
+      // Create nodes from new links
+      for (let k = 0; k < linksBuffer.length; k++) {
+        const link = linksBuffer[k];
+        createNodes(link);
+      }
+      simulation.nodes(nodes);
+      simulation.force('link').links(links);
+      simulation.alpha(1).restart();
     }
-    simulation.nodes(nodes);
-    simulation.force('link').links(links);
-    simulation.alpha(1).restart();
-  } else {
-    console.log('pushing');
-    transactions.push(JSON.parse(event.data));
   }
 };
 
