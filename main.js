@@ -6,8 +6,8 @@ let process = 1;
 
 const canvas = document.querySelector('canvas');
 const context = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+canvas.width = window.innerWidth * 0.9;
+canvas.height = window.innerHeight * 0.9;
 const { width, height } = canvas;
 
 // Set up D3 Simulation
@@ -18,15 +18,15 @@ function drawLink(d) {
 
 function drawNode(d) {
   context.beginPath();
-  //   if (d.x > (width / 2) - (radius * 2) || d.x < (width / -2) + (radius * 2)) {
-  //     const newX = d.x > 1 ? width / 2 - radius * 2 : width / -2;
-  //     d.x = newX;
-  //   }
+  if (d.x > (width / 2) - (radius * 2) || d.x < (width / -2) + (radius * 2)) {
+    const newX = d.x > 1 ? width / 2 - radius * 2 : width / -2;
+    d.x = newX;
+  }
 
-  //   if (d.y > (height / 2) - (radius * 2) || d.y < (height / -2) + (radius * 2)) {
-  //     const newY = d.y > 1 ? height / 2 - radius * 2 : height / -2;
-  //     d.y = newY;
-  //   }
+  if (d.y > (height / 2) - (radius * 2) || d.y < (height / -2) + (radius * 2)) {
+    const newY = d.y > 1 ? height / 2 - radius * 2 : height / -2;
+    d.y = newY;
+  }
 
   context.moveTo(d.x + radius, d.y);
   context.arc(d.x, d.y, radius, 0, 2 * Math.PI);
@@ -67,7 +67,7 @@ function ticked() {
 
 const simulation = d3.forceSimulation(nodes)
   .force('charge', d3.forceManyBody())
-  .force('link', d3.forceLink(links).id((d => d.id)).distance(50).strength(1))
+  .force('link', d3.forceLink(links).id((d => d.id)).distance(20).strength(1))
   .force('collision', d3.forceCollide().radius(d => d.radius))
   .force('x', d3.forceX())
   .force('y', d3.forceY())
