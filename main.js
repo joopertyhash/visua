@@ -8,8 +8,8 @@ let process = 1;
 
 const canvas = document.querySelector('canvas');
 const context = canvas.getContext('2d');
-canvas.width = window.innerWidth * 0.95;
-canvas.height = window.innerHeight * 0.95;
+canvas.width = window.innerWidth * 0.9;
+canvas.height = window.innerHeight * 0.9;
 const { width, height } = canvas;
 
 function ticked() {
