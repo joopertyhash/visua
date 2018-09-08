@@ -9,8 +9,9 @@ let process = 1;
 
 const canvas = document.querySelector('canvas');
 const context = canvas.getContext('2d');
-canvas.width = window.innerWidth * 0.95;
-canvas.height = window.innerHeight * 0.95;
+const dimen = Math.min(window.innerWidth, window.innerHeight);
+canvas.width = dimen;
+canvas.height = dimen;
 const { width, height } = canvas;
 
 function ticked() {
@@ -70,7 +71,6 @@ function createNodes(link) {
     nodes = newNodes;
     links = newLinks;
   }
-  console.log(nodes.length + links.length);
 
   // Handle input links
   let node = null;
@@ -134,6 +134,7 @@ socket.addEventListener('open', () => {
 
 socket.onmessage = (event) => {
   const tx = JSON.parse(event.data);
+  console.log(tx);
   if (tx.op === 'utx') {
     const { hash, inputs, out } = tx.x;
     // Create transaction node
